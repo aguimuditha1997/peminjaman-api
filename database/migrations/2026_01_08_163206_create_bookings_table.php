@@ -21,7 +21,7 @@ return new class extends Migration
             $table->enum('type_week',['weekday','weekend'])->default('weekday');
             $table->string('no_whatsapp');
             $table->foreignId('room_id')->constrained();
-            $table->timestamp('start-time')->nullable();
+            $table->timestamp('start_time')->nullable();
             $table->timestamp('end_time')->nullable();
             $table->longText('note');
             $table->string('purpose');

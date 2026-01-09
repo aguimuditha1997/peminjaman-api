@@ -15,7 +15,7 @@ class RoomStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nameroom' => 'required|string|max:100|unique:ruangan,nama_ruangan',
+            'nameroom' => 'required|string|max:100|unique:rooms,nameroom',
             'capacity' => 'required|integer|min:1',
             'detail'   => 'required|string|min:10',
             'images'   => 'required|array|min:1', // Harus berupa array dan minimal 1 file
