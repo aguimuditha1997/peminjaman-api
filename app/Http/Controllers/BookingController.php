@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\BookingStatusMail;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Booking;
 use App\Http\Requests\BookingStoreRequest;
 use Carbon\Carbon;
@@ -132,10 +134,10 @@ class BookingController extends Controller
         }
     }
 
-    public function update(Request $request, $code)
+  public function update(Request $request, $code)
     {
         try {
-            // 1. Cari booking berdasarkan kode
+            // 1. Cari booking berdasarkan code
             $booking = Booking::where('code', $code)->first();
 
             if (!$booking) {
@@ -146,76 +148,86 @@ class BookingController extends Controller
             }
 
             $user = $request->user();
-            $dataToUpdate = [];
 
-            // 2. Definisi Aturan Validasi Umum (Start, End, Room, Week)
-            $commonRules = [
-                'start_date' => 'sometimes|date',
-                'end_date'   => 'sometimes|date|after_or_equal:start_date',
-                'nameroom'   => 'sometimes|string',
-                'type_week'  => 'sometimes|string|in:weekday,weekend',
-            ];
+            // 2. Validasi Input
+            $validator = Validator::make($request->all(), [
+                'room_id'    => 'sometimes|exists:rooms,id',
+                'start_time' => 'sometimes|date',
+                'end_time'   => 'sometimes|date|after_or_equal:start_time',
+                'status'     => 'sometimes|in:approve,rejected,reject,pending',
+            ]);
 
-            // 3. Logika Berdasarkan Role
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            }
+
+            // 3. Update Detail
+            if ($request->has('room_id')) {
+                $booking->room_id = $request->room_id;
+            }
+            if ($request->has('start_time')) {
+                $booking->start_time = str_replace('T', ' ', $request->start_time);
+            }
+            if ($request->has('end_time')) {
+                $booking->end_time = str_replace('T', ' ', $request->end_time);
+            }
+
+            // 4. Update Status Berdasarkan Role
+            $statusValue = $request->status;
+            if ($statusValue === 'reject') {
+                $statusValue = 'rejected';
+            }
+
             if ($user->role === 'sdm') {
-                // Validasi: Gabungkan aturan umum + status_sdm
-                $validator = Validator::make($request->all(), array_merge($commonRules, [
-                    'status_sdm' => 'sometimes|in:pending,approve,rejected',
-                ]));
-
-                if ($validator->fails()) {
-                    return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+                if ($request->has('status')) {
+                    $booking->status_sdm = $statusValue;
                 }
-
-                // Proteksi: SDM tidak boleh mengubah status_dpt
-                if ($request->has('status_dpt')) {
-                    return response()->json(['message' => 'Role SDM tidak diizinkan mengubah status DPT.'], 403);
-                }
-
-                $dataToUpdate = $request->only(['start_date', 'end_date', 'nameroom', 'type_week', 'status_sdm']);
-
             } elseif ($user->role === 'dpt') {
-                // Validasi: Gabungkan aturan umum + status_dpt
-                $validator = Validator::make($request->all(), array_merge($commonRules, [
-                    'status_dpt' => 'sometimes|in:pending,approve,rejected',
-                ]));
-
-                if ($validator->fails()) {
-                    return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+                if ($request->has('status')) {
+                    $booking->status_dpt = $statusValue;
                 }
-
-                // Proteksi: DPT tidak boleh mengubah status_sdm
-                if ($request->has('status_sdm')) {
-                    return response()->json(['message' => 'Role DPT tidak diizinkan mengubah status SDM.'], 403);
+            } elseif ($user->role === 'admin') {
+                if ($request->has('status')) {
+                    $booking->status_sdm = $statusValue;
+                    $booking->status_dpt = $statusValue;
                 }
-
-                // DPT sekarang diizinkan merubah jadwal, ruangan, type_week, dan status_dpt
-                $dataToUpdate = $request->only(['start_date', 'end_date', 'nameroom', 'type_week', 'status_dpt']);
-
             } else {
-                return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+                return response()->json(['success' => false, 'message' => "Role $user->role tidak memiliki akses untuk update status."], 403);
             }
 
-            // 4. Cek jika tidak ada data dikirim
-            if (empty($dataToUpdate)) {
-                return response()->json(['success' => false, 'message' => 'Tidak ada data untuk diperbarui.'], 400);
-            }
+            // 5. Simpan Perubahan
+            $booking->save();
 
-            // 5. Eksekusi Update
-            $booking->update($dataToUpdate);
+            // 6. Logic Pengiriman Email
+            if ($booking->email) {
+                $isRejected = ($booking->status_sdm === 'rejected' || $booking->status_dpt === 'rejected');
+                $isFinalApproved = ($booking->status_sdm === 'approve' && $booking->status_dpt === 'approve');
+
+                if ($isRejected || $isFinalApproved) {
+                    try {
+                        Mail::to($booking->email)->send(new BookingStatusMail($booking));
+                    } catch (\Exception $e) {
+                        \log::error("Gagal mengirim email ke {$booking->email}: " . $e->getMessage());
+                    }
+                }
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => "Booking $code berhasil diperbarui oleh " . strtoupper($user->role),
-                'data' => $booking
+                'message' => "Booking $code berhasil diperbarui oleh " . strtoupper($user->role) . " dan email notifikasi diproses.",
+                'data' => $booking->fresh(['room'])
             ], 200);
 
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan pada server.',
+                'message' => 'Gagal memperbarui data.',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+    
+
+    
+
 }
