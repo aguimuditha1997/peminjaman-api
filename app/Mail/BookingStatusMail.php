@@ -11,7 +11,7 @@ use Illuminate\Queue\SerializesModels;
 use App\Models\Booking;
 
 
-class BookingStatusMail extends Mailable implements ShouldQueue
+class BookingStatusMail extends Mailable
 {
     use Queueable, SerializesModels;
 

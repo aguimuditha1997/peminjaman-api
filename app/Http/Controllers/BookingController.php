@@ -23,13 +23,13 @@ class BookingController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Bookings retrieved successfully.',
-                'data'    => $bookings
+                'data' => $bookings
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve bookings.',
-                'error'   => $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -41,7 +41,7 @@ class BookingController extends Controller
 
             $start = Carbon::parse($validated['start_time']);
             $end = Carbon::parse($validated['end_time']);
-            $roomId = $validated['room_id']; 
+            $roomId = $validated['room_id'];
 
             // 2. LOGIKA CEK BENTROK (OVERLAP)
             // Mengecek apakah ada booking yang sudah APPROVE di waktu yang sama
@@ -51,7 +51,7 @@ class BookingController extends Controller
                 ->where(function ($query) use ($start, $end) {
                     // Rumus Overlap: (Mulai_Baru < Selesai_Lama) DAN (Selesai_Baru > Mulai_Lama)
                     $query->where('start_time', '<', $end)
-                          ->where('end_time', '>', $start);
+                        ->where('end_time', '>', $start);
                 })
                 ->exists();
 
@@ -96,14 +96,14 @@ class BookingController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Booking successfully created.',
-                'data'    => $booking
+                'data' => $booking
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create booking.',
-                'error'   => $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -123,18 +123,18 @@ class BookingController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Booking details retrieved successfully.',
-                'data'    => $booking
+                'data' => $booking
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve booking details.',
-                'error'   => $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }
 
-  public function update(Request $request, $code)
+    public function update(Request $request, $code)
     {
         try {
             // 1. Cari booking berdasarkan code
@@ -151,10 +151,10 @@ class BookingController extends Controller
 
             // 2. Validasi Input
             $validator = Validator::make($request->all(), [
-                'room_id'    => 'sometimes|exists:rooms,id',
+                'room_id' => 'sometimes|exists:rooms,id',
                 'start_time' => 'sometimes|date',
-                'end_time'   => 'sometimes|date|after_or_equal:start_time',
-                'status'     => 'sometimes|in:approve,rejected,reject,pending',
+                'end_time' => 'sometimes|date|after_or_equal:start_time',
+                'status' => 'sometimes|in:approve,rejected,reject,pending',
             ]);
 
             if ($validator->fails()) {
@@ -198,24 +198,18 @@ class BookingController extends Controller
             // 5. Simpan Perubahan
             $booking->save();
 
-            // 6. Logic Pengiriman Email
-            if ($booking->email) {
-                $isRejected = ($booking->status_sdm === 'rejected' || $booking->status_dpt === 'rejected');
-                $isFinalApproved = ($booking->status_sdm === 'approve' && $booking->status_dpt === 'approve');
+            // 6. Send Email Notification if terminal state is reached
+            $isApproved = ($booking->status_sdm === 'approve' && $booking->status_dpt === 'approve');
+            $isRejected = ($booking->status_sdm === 'rejected' || $booking->status_dpt === 'rejected');
 
-                if ($isRejected || $isFinalApproved) {
-                    try {
-                        Mail::to($booking->email)->send(new BookingStatusMail($booking));
-                    } catch (\Exception $e) {
-                        \log::error("Gagal mengirim email ke {$booking->email}: " . $e->getMessage());
-                    }
-                }
+            if ($isApproved || $isRejected) {
+                Mail::to($booking->email)->send(new BookingStatusMail($booking));
             }
 
             return response()->json([
                 'success' => true,
-                'message' => "Booking $code berhasil diperbarui oleh " . strtoupper($user->role) . " dan email notifikasi diproses.",
-                'data' => $booking->fresh(['room'])
+                'message' => 'Booking updated successfully.',
+                'data' => $booking
             ], 200);
 
         } catch (Exception $e) {
@@ -226,8 +220,8 @@ class BookingController extends Controller
             ], 500);
         }
     }
-    
 
-    
+
+
 
 }
