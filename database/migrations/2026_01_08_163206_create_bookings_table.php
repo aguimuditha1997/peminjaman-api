@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('organization');
             $table->string('email');
+            $table->string('code')->unique();
             $table->enum('status_dpt',['pending','approve','rejected'])->default('pending');
             $table->enum('status_sdm',['pending','approve','rejected'])->default('pending');
             $table->enum('type_week',['weekday','weekend'])->default('weekday');

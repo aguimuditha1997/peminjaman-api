@@ -12,7 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Tambahkan ini untuk mengaktifkan fitur API yang stateful (CORS & Sanctum)
+        $middleware->statefulApi();
+        
+        // Opsional: Jika masih error, Anda bisa mematikan CSRF untuk API secara eksplisit
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

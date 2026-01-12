@@ -8,6 +8,7 @@ class Room extends Model
 {
     protected $fillable = [
         'nameroom',
+        'slug',
         'capacity',
         'detail',
         'images',

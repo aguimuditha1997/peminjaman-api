@@ -10,6 +10,7 @@ class Booking extends Model
         'name',
         'organization',
         'email',
+        'code',
         'status_dpt',
         'status_sdm',
         'type_week',
